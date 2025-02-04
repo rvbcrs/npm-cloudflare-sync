@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>npm-cloudflare-sync</Name>
+  <Repository>ramonvanbruggen/npm-cloudflare-sync</Repository>
+  <Registry>https://hub.docker.com/r/ramonvanbruggen/npm-cloudflare-sync</Registry>
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/ramonvanbruggen/npm-cloudflare-sync</Support>
+  <Project>https://github.com/ramonvanbruggen/npm-cloudflare-sync</Project>
+  <Overview>
+    A service that automatically synchronizes Nginx Proxy Manager host configurations with Cloudflare DNS records. It supports both A records for root domains and CNAME records for subdomains.
+  </Overview>
+  <Category>Network:DNS Network:Management Tools:</Category>
+  <WebUI/>
+  <TemplateURL>https://raw.githubusercontent.com/ramonvanbruggen/npm-cloudflare-sync/main/docker-template.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/ramonvanbruggen/npm-cloudflare-sync/main/icon.png</Icon>
+  <ExtraParams/>
+  <DateInstalled>1612444800</DateInstalled>
+  <Description>
+    This container synchronizes Nginx Proxy Manager host configurations with Cloudflare DNS records automatically. Features include:
+    
+    - Automatic DNS record management
+    - Support for both root domains and subdomains
+    - Real-time synchronization
+    - Smart handling of A and CNAME records
+    - Configurable check intervals
+    - Detailed logging
+  </Description>
+  <Config Name="Cloudflare API Token" Target="CF_API_TOKEN" Default="" Mode="" Description="Your Cloudflare API token" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="Cloudflare Email" Target="CF_EMAIL" Default="" Mode="" Description="Your Cloudflare account email" Type="Variable" Display="always" Required="true" Mask="false"/>
+  <Config Name="NPM API URL" Target="NPM_API_URL" Default="http://npm:81" Mode="" Description="URL of your NPM instance (e.g., http://npm:81)" Type="Variable" Display="always" Required="true" Mask="false"/>
+  <Config Name="NPM Email" Target="NPM_EMAIL" Default="" Mode="" Description="NPM admin email" Type="Variable" Display="always" Required="true" Mask="false"/>
+  <Config Name="NPM Password" Target="NPM_PASSWORD" Default="" Mode="" Description="NPM admin password" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="Check Interval" Target="CHECK_INTERVAL" Default="10000" Mode="" Description="Interval in milliseconds between checks" Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Log Level" Target="LOG_LEVEL" Default="info" Mode="" Description="Logging level (error, warn, info, debug)" Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Auto Create Root Records" Target="AUTO_CREATE_ROOT_RECORDS" Default="false" Mode="" Description="Automatically create root A records when missing" Type="Variable" Display="advanced" Required="false" Mask="false"/>
+</Container>

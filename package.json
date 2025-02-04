@@ -1,0 +1,22 @@
+{
+  "name": "npm-cloudflare-sync",
+  "version": "1.0.0",
+  "description": "Sync Nginx Proxy Manager hosts with Cloudflare DNS",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "node-fetch": "^3.3.2",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.9",
+    "tsx": "^4.1.2",
+    "typescript": "^5.2.2"
+  }
+}
