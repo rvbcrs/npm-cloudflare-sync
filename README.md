@@ -27,6 +27,51 @@ A service that automatically synchronizes Nginx Proxy Manager host configuration
 
 ## Installation
 
+### Docker Compose Installation
+
+1. Create a `docker-compose.yml` file:
+
+```yaml
+version: "3"
+
+services:
+  npm-cloudflare-sync:
+    image: rvbcrs/npm-cloudflare-sync:latest
+    container_name: npm-cloudflare-sync
+    environment:
+      - CF_API_TOKEN=your_token
+      - CF_EMAIL=your_email
+      - NPM_API_URL=http://npm:81
+      - NPM_EMAIL=your_npm_email
+      - NPM_PASSWORD=your_npm_password
+      - CHECK_INTERVAL=10000
+      - LOG_LEVEL=info
+      - AUTO_CREATE_ROOT_RECORDS=false
+    restart: unless-stopped
+```
+
+2. Replace the environment variables with your values
+3. Run the container:
+
+```bash
+docker-compose up -d
+```
+
+### Docker Installation
+
+```bash
+docker run -d \
+  -e CF_API_TOKEN=your_token \
+  -e CF_EMAIL=your_email \
+  -e NPM_API_URL=http://your-npm-instance:81 \
+  -e NPM_EMAIL=your_npm_email \
+  -e NPM_PASSWORD=your_npm_password \
+  -e CHECK_INTERVAL=10000 \
+  -e LOG_LEVEL=info \
+  -e AUTO_CREATE_ROOT_RECORDS=false \
+  rvbcrs/npm-cloudflare-sync
+```
+
 ### Unraid Installation
 
 1. Open the Unraid web interface
@@ -48,21 +93,6 @@ A service that automatically synchronizes Nginx Proxy Manager host configuration
 - `CHECK_INTERVAL`: Interval in milliseconds between checks (default: 10000)
 - `LOG_LEVEL`: Logging level (error, warn, info, debug) (default: info)
 - `AUTO_CREATE_ROOT_RECORDS`: Automatically create root A records when missing (default: false)
-
-## Docker Installation
-
-```bash
-docker run -d \
-  -e CF_API_TOKEN=your_token \
-  -e CF_EMAIL=your_email \
-  -e NPM_API_URL=http://your-npm-instance:81 \
-  -e NPM_EMAIL=your_npm_email \
-  -e NPM_PASSWORD=your_npm_password \
-  -e CHECK_INTERVAL=10000 \
-  -e LOG_LEVEL=info \
-  -e AUTO_CREATE_ROOT_RECORDS=false \
-  rvbcrs/npm-cloudflare-sync
-```
 
 ## How It Works
 
