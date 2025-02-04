@@ -1,7 +1,7 @@
-import fetch, { RequestInit } from 'node-fetch';
-import { logger } from './logger.js';
-import { DNSRecord, CloudflareResponse, CloudflareZone } from './types.js';
-import { getPublicIP } from './public-ip.js';
+import fetch, { RequestInit } from "node-fetch";
+import { logger } from "./logger.js";
+import { DNSRecord, CloudflareResponse, CloudflareZone } from "./types.js";
+import { getPublicIP } from "./public-ip.js";
 
 /**
  * Custom error class for Cloudflare API errors
@@ -13,7 +13,7 @@ class CloudflareError extends Error {
     public response?: any
   ) {
     super(message);
-    this.name = 'CloudflareError';
+    this.name = "CloudflareError";
   }
 }
 
@@ -23,20 +23,20 @@ class CloudflareError extends Error {
  */
 export class CloudflareAPI {
   private readonly apiToken: string;
-  private readonly baseUrl: string = 'https://api.cloudflare.com/client/v4';
+  private readonly baseUrl: string = "https://api.cloudflare.com/client/v4";
   private zones: Map<string, string> = new Map(); // domain -> zoneId
   private readonly maxRetries: number = 3;
   private readonly retryDelay: number = 1000; // 1 second
 
   constructor(apiToken: string) {
     if (!apiToken) {
-      throw new Error('Cloudflare API token is required');
+      throw new Error("Cloudflare API token is required");
     }
     this.apiToken = apiToken;
-    logger.info('CloudflareAPI initialized', {
+    logger.info("CloudflareAPI initialized", {
       baseUrl: this.baseUrl,
       tokenLength: this.apiToken.length,
-      maxRetries: this.maxRetries
+      maxRetries: this.maxRetries,
     });
   }
 
@@ -45,8 +45,8 @@ export class CloudflareAPI {
    */
   private get headers(): Record<string, string> {
     return {
-      'Authorization': `Bearer ${this.apiToken}`,
-      'Content-Type': 'application/json'
+      Authorization: `Bearer ${this.apiToken}`,
+      "Content-Type": "application/json",
     };
   }
 
@@ -55,7 +55,7 @@ export class CloudflareAPI {
    */
   private async delay(attempt: number): Promise<void> {
     const waitTime = Math.min(this.retryDelay * Math.pow(2, attempt), 10000);
-    await new Promise(resolve => setTimeout(resolve, waitTime));
+    await new Promise((resolve) => setTimeout(resolve, waitTime));
   }
 
   /**
@@ -67,28 +67,28 @@ export class CloudflareAPI {
     context: string
   ): Promise<CloudflareResponse<T>> {
     let lastError: Error | null = null;
-    
+
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
         logger.debug(`Making request to ${url}`, {
           context,
           attempt: attempt + 1,
-          method: options.method || 'GET'
+          method: options.method || "GET",
         });
 
         const response = await fetch(url, {
           ...options,
           headers: {
             ...this.headers,
-            ...(options.headers || {})
-          }
+            ...(options.headers || {}),
+          },
         });
-        
+
         // Log the raw response for debugging
-        logger.debug('Received response', {
+        logger.debug("Received response", {
           status: response.status,
           statusText: response.statusText,
-          headers: Object.fromEntries(response.headers.entries())
+          headers: Object.fromEntries(response.headers.entries()),
         });
 
         // Handle non-OK responses
@@ -101,37 +101,42 @@ export class CloudflareAPI {
             errorData = { raw: responseText };
           }
 
-          const errorMessage = errorData?.errors?.[0]?.message || response.statusText;
-          
+          const errorMessage =
+            errorData?.errors?.[0]?.message || response.statusText;
+
           // Log detailed error information
-          logger.error('Request failed', {
+          logger.error("Request failed", {
             context,
             status: response.status,
             statusText: response.statusText,
             errorMessage,
             errorData,
-            attempt: attempt + 1
+            attempt: attempt + 1,
           });
 
           switch (response.status) {
             case 530: // Authentication error
               throw new CloudflareError(
-                'Authentication failed. Please check your API token.',
+                "Authentication failed. Please check your API token.",
                 response.status,
                 errorData
               );
             case 429: // Rate limit
               if (attempt < this.maxRetries - 1) {
-                const retryAfter = response.headers.get('Retry-After');
-                const waitTime = retryAfter ? parseInt(retryAfter, 10) * 1000 : this.retryDelay;
-                logger.warn(`Rate limited. Waiting ${waitTime}ms before retry...`);
-                await new Promise(resolve => setTimeout(resolve, waitTime));
+                const retryAfter = response.headers.get("Retry-After");
+                const waitTime = retryAfter
+                  ? parseInt(retryAfter, 10) * 1000
+                  : this.retryDelay;
+                logger.warn(
+                  `Rate limited. Waiting ${waitTime}ms before retry...`
+                );
+                await new Promise((resolve) => setTimeout(resolve, waitTime));
                 continue;
               }
               break;
             case 403:
               throw new CloudflareError(
-                'Access denied. Please check your API token permissions.',
+                "Access denied. Please check your API token permissions.",
                 response.status,
                 errorData
               );
@@ -142,7 +147,7 @@ export class CloudflareAPI {
                 continue;
               }
           }
-          
+
           throw new CloudflareError(
             `${context} failed: ${errorMessage}`,
             response.status,
@@ -151,10 +156,10 @@ export class CloudflareAPI {
         }
 
         // Parse successful response
-        const data = await response.json() as CloudflareResponse<T>;
+        const data = (await response.json()) as CloudflareResponse<T>;
         if (!data.success) {
           throw new CloudflareError(
-            `${context} failed: ${data.errors[0]?.message || 'Unknown error'}`,
+            `${context} failed: ${data.errors[0]?.message || "Unknown error"}`,
             response.status,
             data
           );
@@ -162,22 +167,22 @@ export class CloudflareAPI {
 
         logger.debug(`Request successful`, {
           context,
-          resultCount: Array.isArray(data.result) ? data.result.length : 1
+          resultCount: Array.isArray(data.result) ? data.result.length : 1,
         });
 
         return data;
       } catch (error) {
         lastError = error as Error;
-        
+
         // Log detailed error information
-        logger.error('Request error', {
+        logger.error("Request error", {
           context,
           attempt: attempt + 1,
           error: {
-            name: error.name,
-            message: error.message,
-            stack: error.stack
-          }
+            name: error instanceof Error ? error.name : "Unknown Error",
+            message: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+          },
         });
 
         if (error instanceof CloudflareError && error.statusCode === 530) {
@@ -185,7 +190,10 @@ export class CloudflareAPI {
           throw error;
         }
 
-        if (!(error instanceof CloudflareError) && attempt < this.maxRetries - 1) {
+        if (
+          !(error instanceof CloudflareError) &&
+          attempt < this.maxRetries - 1
+        ) {
           logger.warn(`Network error. Retrying...`);
           await this.delay(attempt);
           continue;
@@ -194,7 +202,10 @@ export class CloudflareAPI {
       }
     }
 
-    throw lastError || new Error(`${context} failed after ${this.maxRetries} attempts`);
+    throw (
+      lastError ||
+      new Error(`${context} failed after ${this.maxRetries} attempts`)
+    );
   }
 
   /**
@@ -205,18 +216,18 @@ export class CloudflareAPI {
       const data = await this.makeRequest<CloudflareZone[]>(
         `${this.baseUrl}/zones`,
         { headers: this.headers },
-        'Fetching zones'
+        "Fetching zones"
       );
       logger.info(`Found ${data.result.length} Cloudflare zones`);
       return data.result;
     } catch (error) {
       if (error instanceof CloudflareError) {
-        logger.error('Cloudflare API error:', {
+        logger.error("Cloudflare API error:", {
           message: error.message,
-          statusCode: error.statusCode
+          statusCode: error.statusCode,
         });
       } else {
-        logger.error('Error fetching zones:', error);
+        logger.error("Error fetching zones:", error);
       }
       return [];
     }
@@ -244,53 +255,59 @@ export class CloudflareAPI {
   private async updateRootDomainRecords(): Promise<void> {
     try {
       const publicIP = await getPublicIP();
-      logger.debug('Checking root domain A records with current public IP:', { publicIP });
+      logger.debug("Checking root domain A records with current public IP:", {
+        publicIP,
+      });
 
       for (const [domain, zoneId] of this.zones.entries()) {
         const records = await this.getDNSRecords(domain);
-        const aRecord = records.find(r => r.type === 'A' && r.name === domain);
+        const aRecord = records.find(
+          (r) => r.type === "A" && r.name === domain
+        );
 
-        logger.debug('Checking root domain record:', {
+        logger.debug("Checking root domain record:", {
           domain,
-          currentRecord: aRecord ? {
-            type: aRecord.type,
-            content: aRecord.content,
-            proxied: aRecord.proxied
-          } : 'No A record found',
-          desiredIP: publicIP
+          currentRecord: aRecord
+            ? {
+                type: aRecord.type,
+                content: aRecord.content,
+                proxied: aRecord.proxied,
+              }
+            : "No A record found",
+          desiredIP: publicIP,
         });
 
         if (aRecord) {
           if (aRecord.content !== publicIP) {
             logger.info(`Updating root domain A record for ${domain}`, {
               oldIP: aRecord.content,
-              newIP: publicIP
+              newIP: publicIP,
             });
 
             await this.updateDNSRecord(domain, aRecord.id, {
               ...aRecord,
-              content: publicIP
+              content: publicIP,
             });
           } else {
             logger.debug(`Root domain ${domain} already has correct IP`, {
-              ip: publicIP
+              ip: publicIP,
             });
           }
         } else {
           logger.info(`Creating root domain A record for ${domain}`, {
-            ip: publicIP
+            ip: publicIP,
           });
 
           await this.createDNSRecord(domain, {
             name: domain,
-            type: 'A',
+            type: "A",
             content: publicIP,
-            proxied: true
+            proxied: true,
           });
         }
       }
     } catch (error) {
-      logger.error('Error updating root domain records:', error);
+      logger.error("Error updating root domain records:", error);
     }
   }
 
@@ -298,7 +315,7 @@ export class CloudflareAPI {
    * Gets the root domain for a given domain/subdomain
    */
   getRootDomain(domain: string): string {
-    let bestMatch = '';
+    let bestMatch = "";
     for (const zoneName of this.zones.keys()) {
       if (domain.endsWith(zoneName) && zoneName.length > bestMatch.length) {
         bestMatch = zoneName;
@@ -329,18 +346,18 @@ export class CloudflareAPI {
       const data = await this.makeRequest<DNSRecord[]>(
         `${this.baseUrl}/zones/${zoneId}/dns_records`,
         { headers: this.headers },
-        'Fetching DNS records'
+        "Fetching DNS records"
       );
       return data.result;
     } catch (error) {
       if (error instanceof CloudflareError) {
-        logger.error('Cloudflare API error:', {
+        logger.error("Cloudflare API error:", {
           message: error.message,
           statusCode: error.statusCode,
-          domain
+          domain,
         });
       } else {
-        logger.error('Error fetching DNS records:', error);
+        logger.error("Error fetching DNS records:", error);
       }
       return [];
     }
@@ -353,16 +370,15 @@ export class CloudflareAPI {
   private async hasWildcardARecord(domain: string): Promise<boolean> {
     const rootDomain = this.getRootDomain(domain);
     const records = await this.getDNSRecords(rootDomain);
-    
-    const wildcardRecord = records.find(record => 
-      record.type === 'A' && 
-      record.name === '*.' + rootDomain  // Only check for single asterisk wildcard
+
+    const wildcardRecord = records.find(
+      (record) => record.type === "A" && record.name === "*." + rootDomain // Only check for single asterisk wildcard
     );
 
     if (wildcardRecord) {
       logger.warn(`Found wildcard A record for ${rootDomain}`, {
         recordName: wildcardRecord.name,
-        content: wildcardRecord.content
+        content: wildcardRecord.content,
       });
       return true;
     }
@@ -373,7 +389,10 @@ export class CloudflareAPI {
   /**
    * Creates a new DNS record with wildcard record check
    */
-  async createDNSRecord(domain: string, data: Omit<DNSRecord, 'id'>): Promise<DNSRecord | null> {
+  async createDNSRecord(
+    domain: string,
+    data: Omit<DNSRecord, "id">
+  ): Promise<DNSRecord | null> {
     const zoneId = this.getZoneIdForDomain(domain);
     if (!zoneId) {
       logger.warn(`No matching zone found for domain: ${domain}`);
@@ -381,14 +400,17 @@ export class CloudflareAPI {
     }
 
     // Check for wildcard record if trying to create a CNAME
-    if (data.type === 'CNAME') {
+    if (data.type === "CNAME") {
       const hasWildcard = await this.hasWildcardARecord(domain);
       if (hasWildcard) {
-        logger.error(`Cannot create CNAME record for ${domain} due to existing wildcard A record`, {
-          domain,
-          recordType: data.type,
-          content: data.content
-        });
+        logger.error(
+          `Cannot create CNAME record for ${domain} due to existing wildcard A record`,
+          {
+            domain,
+            recordType: data.type,
+            content: data.content,
+          }
+        );
         return null;
       }
     }
@@ -397,27 +419,27 @@ export class CloudflareAPI {
       const result = await this.makeRequest<DNSRecord>(
         `${this.baseUrl}/zones/${zoneId}/dns_records`,
         {
-          method: 'POST',
+          method: "POST",
           headers: this.headers,
-          body: JSON.stringify(data)
+          body: JSON.stringify(data),
         },
-        'Creating DNS record'
+        "Creating DNS record"
       );
       logger.info(`Successfully created DNS record for ${domain}`, {
         type: data.type,
-        content: data.content
+        content: data.content,
       });
       return result.result;
     } catch (error) {
       if (error instanceof CloudflareError) {
-        logger.error('Cloudflare API error:', {
+        logger.error("Cloudflare API error:", {
           message: error.message,
           statusCode: error.statusCode,
           domain,
-          recordType: data.type
+          recordType: data.type,
         });
       } else {
-        logger.error('Error creating DNS record:', error);
+        logger.error("Error creating DNS record:", error);
       }
       return null;
     }
@@ -426,7 +448,11 @@ export class CloudflareAPI {
   /**
    * Updates an existing DNS record with wildcard record check
    */
-  async updateDNSRecord(domain: string, recordId: string, data: Partial<DNSRecord>): Promise<DNSRecord | null> {
+  async updateDNSRecord(
+    domain: string,
+    recordId: string,
+    data: Partial<DNSRecord>
+  ): Promise<DNSRecord | null> {
     const zoneId = this.getZoneIdForDomain(domain);
     if (!zoneId) {
       logger.warn(`No matching zone found for domain: ${domain}`);
@@ -434,14 +460,17 @@ export class CloudflareAPI {
     }
 
     // Check for wildcard record if updating to a CNAME
-    if (data.type === 'CNAME') {
+    if (data.type === "CNAME") {
       const hasWildcard = await this.hasWildcardARecord(domain);
       if (hasWildcard) {
-        logger.error(`Cannot update to CNAME record for ${domain} due to existing wildcard A record`, {
-          domain,
-          recordType: data.type,
-          content: data.content
-        });
+        logger.error(
+          `Cannot update to CNAME record for ${domain} due to existing wildcard A record`,
+          {
+            domain,
+            recordType: data.type,
+            content: data.content,
+          }
+        );
         return null;
       }
     }
@@ -450,27 +479,27 @@ export class CloudflareAPI {
       const result = await this.makeRequest<DNSRecord>(
         `${this.baseUrl}/zones/${zoneId}/dns_records/${recordId}`,
         {
-          method: 'PUT',
+          method: "PUT",
           headers: this.headers,
-          body: JSON.stringify(data)
+          body: JSON.stringify(data),
         },
-        'Updating DNS record'
+        "Updating DNS record"
       );
       logger.info(`Successfully updated DNS record for ${domain}`, {
         type: data.type,
-        content: data.content
+        content: data.content,
       });
       return result.result;
     } catch (error) {
       if (error instanceof CloudflareError) {
-        logger.error('Cloudflare API error:', {
+        logger.error("Cloudflare API error:", {
           message: error.message,
           statusCode: error.statusCode,
           domain,
-          recordId
+          recordId,
         });
       } else {
-        logger.error('Error updating DNS record:', error);
+        logger.error("Error updating DNS record:", error);
       }
       return null;
     }
@@ -490,25 +519,25 @@ export class CloudflareAPI {
       await this.makeRequest<void>(
         `${this.baseUrl}/zones/${zoneId}/dns_records/${recordId}`,
         {
-          method: 'DELETE',
-          headers: this.headers
+          method: "DELETE",
+          headers: this.headers,
         },
-        'Deleting DNS record'
+        "Deleting DNS record"
       );
       logger.info(`Successfully deleted DNS record for ${domain}`, {
-        recordId
+        recordId,
       });
       return true;
     } catch (error) {
       if (error instanceof CloudflareError) {
-        logger.error('Cloudflare API error:', {
+        logger.error("Cloudflare API error:", {
           message: error.message,
           statusCode: error.statusCode,
           domain,
-          recordId
+          recordId,
         });
       } else {
-        logger.error('Error deleting DNS record:', error);
+        logger.error("Error deleting DNS record:", error);
       }
       return false;
     }

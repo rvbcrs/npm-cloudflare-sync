@@ -61,7 +61,7 @@ docker run -d \
   -e CHECK_INTERVAL=10000 \
   -e LOG_LEVEL=info \
   -e AUTO_CREATE_ROOT_RECORDS=false \
-  ramonvanbruggen/npm-cloudflare-sync
+  rvbcrs/npm-cloudflare-sync
 ```
 
 ## How It Works

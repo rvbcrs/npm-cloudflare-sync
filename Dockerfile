@@ -2,10 +2,17 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# First install dependencies
 COPY package*.json ./
 RUN npm install
 
+# Then copy source files
 COPY . .
+
+# Install dependencies again in case package.json changed
+RUN npm install
+
+# Build the TypeScript code
 RUN npm run build
 
 ENV NODE_ENV=production

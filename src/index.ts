@@ -1,14 +1,17 @@
-import { config } from './config.js';
-import { NPMMonitor } from './npm-monitor.js';
-import { CloudflareAPI } from './cloudflare.js';
-import { logger } from './logger.js';
-import { NPMHost, DNSRecord } from './types.js';
-import { getPublicIP } from './public-ip.js';
+import { config } from "./config.js";
+import { NPMMonitor } from "./npm-monitor.js";
+import { CloudflareAPI } from "./cloudflare.js";
+import { logger } from "./logger.js";
+import { NPMHost, DNSRecord } from "./types.js";
+import { getPublicIP } from "./public-ip.js";
 
 let currentPublicIP: string | null = null;
 let ipCheckInterval: NodeJS.Timer | null = null;
 
-async function ensureRootDomainRecord(cf: CloudflareAPI, domain: string): Promise<boolean> {
+async function ensureRootDomainRecord(
+  cf: CloudflareAPI,
+  domain: string
+): Promise<boolean> {
   const rootDomain = cf.getRootDomain(domain);
   if (!rootDomain) {
     logger.error(`Could not determine root domain for ${domain}`);
@@ -20,28 +23,32 @@ async function ensureRootDomainRecord(cf: CloudflareAPI, domain: string): Promis
     return true;
   }
 
-  logger.debug('Checking root domain record:', {
+  logger.debug("Checking root domain record:", {
     subdomain: domain,
-    rootDomain
+    rootDomain,
   });
 
   const rootRecords = await cf.getDNSRecords(rootDomain);
-  const rootARecord = rootRecords.find(r => r.type === 'A' && r.name === rootDomain);
+  const rootARecord = rootRecords.find(
+    (r) => r.type === "A" && r.name === rootDomain
+  );
 
   if (!rootARecord) {
     if (!config?.autoCreateRootRecords) {
-      logger.error(`Missing root A record for ${rootDomain} and auto-creation is disabled`);
+      logger.error(
+        `Missing root A record for ${rootDomain} and auto-creation is disabled`
+      );
       return false;
     }
 
     logger.info(`Creating missing A record for root domain ${rootDomain}`);
     const publicIP = await getPublicIP();
-    
+
     const created = await cf.createDNSRecord(rootDomain, {
       name: rootDomain,
-      type: 'A',
+      type: "A",
       content: publicIP,
-      proxied: true
+      proxied: true,
     });
 
     if (!created) {
@@ -50,30 +57,36 @@ async function ensureRootDomainRecord(cf: CloudflareAPI, domain: string): Promis
     }
 
     logger.info(`Successfully created A record for root domain ${rootDomain}`, {
-      ip: publicIP
+      ip: publicIP,
     });
   } else {
     logger.debug(`Root domain ${rootDomain} already has an A record`, {
-      ip: rootARecord.content
+      ip: rootARecord.content,
     });
   }
 
   return true;
 }
 
-async function updateDomainIP(cf: CloudflareAPI, domain: string, newIP: string): Promise<void> {
+async function updateDomainIP(
+  cf: CloudflareAPI,
+  domain: string,
+  newIP: string
+): Promise<void> {
   const records = await cf.getDNSRecords(domain);
-  const aRecord = records.find(r => r.type === 'A' && r.name === domain);
+  const aRecord = records.find((r) => r.type === "A" && r.name === domain);
 
-  logger.debug('IP Comparison for domain:', {
+  logger.debug("IP Comparison for domain:", {
     domain,
-    currentARecord: aRecord ? {
-      ip: aRecord.content,
-      proxied: aRecord.proxied,
-      type: aRecord.type
-    } : 'No A record found',
+    currentARecord: aRecord
+      ? {
+          ip: aRecord.content,
+          proxied: aRecord.proxied,
+          type: aRecord.type,
+        }
+      : "No A record found",
     newPublicIP: newIP,
-    needsUpdate: aRecord ? (aRecord.content !== newIP) : true
+    needsUpdate: aRecord ? aRecord.content !== newIP : true,
   });
 
   if (aRecord) {
@@ -81,85 +94,87 @@ async function updateDomainIP(cf: CloudflareAPI, domain: string, newIP: string):
       logger.info(`Updating A record IP for ${domain}:`, {
         oldIP: aRecord.content,
         newIP,
-        recordId: aRecord.id
+        recordId: aRecord.id,
       });
 
       const updateData = {
         ...aRecord,
-        content: newIP
+        content: newIP,
       };
 
-      logger.debug('Updating record with data:', updateData);
-      
+      logger.debug("Updating record with data:", updateData);
+
       const updated = await cf.updateDNSRecord(domain, aRecord.id, updateData);
-      
+
       if (updated) {
-        logger.info('Successfully updated A record');
+        logger.info("Successfully updated A record");
       } else {
-        logger.error('Failed to update A record');
+        logger.error("Failed to update A record");
       }
     } else {
       logger.debug(`A record for ${domain} already has correct IP:`, {
         currentIP: aRecord.content,
-        desiredIP: newIP
+        desiredIP: newIP,
       });
     }
   } else if (config?.autoCreateRootRecords) {
     logger.info(`Creating new A record for ${domain} with IP ${newIP}`);
     const recordData = {
       name: domain,
-      type: 'A',
+      type: "A",
       content: newIP,
-      proxied: true
+      proxied: true,
     };
 
-    logger.debug('Creating record with data:', recordData);
-    
+    logger.debug("Creating record with data:", recordData);
+
     const created = await cf.createDNSRecord(domain, recordData);
-    
+
     if (created) {
-      logger.info('Successfully created A record');
+      logger.info("Successfully created A record");
     } else {
-      logger.error('Failed to create A record');
+      logger.error("Failed to create A record");
     }
   } else {
-    logger.error(`Missing A record for ${domain} and auto-creation is disabled`);
+    logger.error(
+      `Missing A record for ${domain} and auto-creation is disabled`
+    );
   }
 }
 
 async function checkPublicIPChange(cf: CloudflareAPI): Promise<void> {
   try {
-    logger.debug('Starting public IP check');
+    logger.debug("Starting public IP check");
     const newIP = await getPublicIP();
-    
-    logger.debug('Public IP Check:', {
+
+    logger.debug("Public IP Check:", {
       currentStoredIP: currentPublicIP,
       newDetectedIP: newIP,
       isInitialCheck: currentPublicIP === null,
       hasChanged: currentPublicIP !== null && currentPublicIP !== newIP,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
     if (currentPublicIP === null) {
       currentPublicIP = newIP;
-      logger.info('Initial public IP set:', { ip: newIP });
+      logger.info("Initial public IP set:", { ip: newIP });
       return;
     }
 
     if (newIP !== currentPublicIP) {
-      logger.info('Public IP changed:', {
+      logger.info("Public IP changed:", {
         oldIP: currentPublicIP,
-        newIP
+        newIP,
       });
 
       // Get all zones and update their root A records
       const zones = await cf.getZones();
-      logger.debug('Updating IP for zones:', {
+      logger.debug("Updating IP for zones:", {
         zoneCount: zones.length,
-        zones: zones.map(z => ({
+        zones: zones.map((z) => ({
           name: z.name,
-          id: z.id
-        }))
+          id: z.id,
+        })),
       });
 
       for (const zone of zones) {
@@ -167,15 +182,15 @@ async function checkPublicIPChange(cf: CloudflareAPI): Promise<void> {
       }
 
       currentPublicIP = newIP;
-      logger.info('Completed updating all zones with new IP');
+      logger.info("Completed updating all zones with new IP");
     } else {
-      logger.debug('Public IP unchanged:', { 
+      logger.debug("Public IP unchanged:", {
         ip: currentPublicIP,
-        lastCheck: new Date().toISOString()
+        lastCheck: new Date().toISOString(),
       });
     }
   } catch (error) {
-    logger.error('Failed to check/update public IP:', error);
+    logger.error("Failed to check/update public IP:", error);
   }
 }
 
@@ -185,7 +200,7 @@ async function handleNPMChanges(
   deletedHosts: NPMHost[]
 ): Promise<void> {
   const cf = new CloudflareAPI(config!.cloudflare.apiToken);
-  
+
   // Initialize zones first
   await cf.initZones();
 
@@ -193,12 +208,12 @@ async function handleNPMChanges(
   for (const host of deletedHosts) {
     const domains = Array.isArray(host.domain_names)
       ? host.domain_names
-      : host.domain_names.split(',');
+      : host.domain_names.split(",");
 
     for (const domain of domains) {
       const domainName = domain.trim();
       const existingRecords = await cf.getDNSRecords(domainName);
-      const existingRecord = existingRecords.find(r => r.name === domainName);
+      const existingRecord = existingRecords.find((r) => r.name === domainName);
 
       if (existingRecord) {
         logger.info(`Deleting DNS record for ${domainName}`);
@@ -209,59 +224,67 @@ async function handleNPMChanges(
 
   // Handle changed and new hosts
   for (const host of changedHosts) {
-    const domains = Array.isArray(host.domain_names) 
-      ? host.domain_names 
-      : host.domain_names.split(',');
+    const domains = Array.isArray(host.domain_names)
+      ? host.domain_names
+      : host.domain_names.split(",");
 
     for (const domain of domains) {
       const domainName = domain.trim();
       const rootDomain = cf.getRootDomain(domainName);
-      
+
       // For subdomains, ensure root domain has an A record first
       if (domainName !== rootDomain) {
         const success = await ensureRootDomainRecord(cf, domainName);
         if (!success) {
-          logger.error(`Cannot proceed with ${domainName} due to root domain A record issues`);
+          logger.error(
+            `Cannot proceed with ${domainName} due to root domain A record issues`
+          );
           continue;
         }
       }
 
       const existingRecords = await cf.getDNSRecords(domainName);
-      const existingRecord = existingRecords.find(r => r.name === domainName);
+      const existingRecord = existingRecords.find((r) => r.name === domainName);
 
       if (domainName !== rootDomain) {
         // For subdomains, create a CNAME record pointing to the root domain
-        const recordData: Omit<DNSRecord, 'id'> = {
+        const recordData: Omit<DNSRecord, "id"> = {
           name: domainName,
-          type: 'CNAME',
+          type: "CNAME",
           content: rootDomain,
-          proxied: true
+          proxied: true,
         };
 
         if (existingRecord) {
-          logger.info(`Updating CNAME record for ${domainName} -> ${rootDomain}`);
+          logger.info(
+            `Updating CNAME record for ${domainName} -> ${rootDomain}`
+          );
           await cf.updateDNSRecord(domainName, existingRecord.id, recordData);
         } else {
-          logger.info(`Creating new CNAME record for ${domainName} -> ${rootDomain}`);
+          logger.info(
+            `Creating new CNAME record for ${domainName} -> ${rootDomain}`
+          );
           await cf.createDNSRecord(domainName, recordData);
         }
       } else {
         // For root domains, ensure A record points to current public IP
         const currentIP = await getPublicIP();
-        logger.debug('Updating root domain A record:', {
+        logger.debug("Updating root domain A record:", {
           domain: domainName,
           currentIP,
-          existingRecord: existingRecord ? {
-            type: existingRecord.type,
-            content: existingRecord.content
-          } : 'none'
+          existingRecord: existingRecord
+            ? {
+                type: existingRecord.type,
+                content: existingRecord.content,
+              }
+            : "none",
         });
 
-        const recordData: Omit<DNSRecord, 'id'> = {
+        const recordData: Omit<DNSRecord, "id"> = {
           name: domainName,
-          type: 'A',
+          type: "A",
           content: currentIP,
-          proxied: true
+          proxied: true,
         };
 
         if (existingRecord) {
@@ -271,7 +294,9 @@ async function handleNPMChanges(
           logger.info(`Creating new A record for ${domainName}`);
           await cf.createDNSRecord(domainName, recordData);
         } else {
-          logger.error(`Cannot create A record for ${domainName} - auto-creation is disabled`);
+          logger.error(
+            `Cannot create A record for ${domainName} - auto-creation is disabled`
+          );
         }
       }
     }
@@ -282,7 +307,7 @@ let monitorInterval: NodeJS.Timer | null = null;
 
 async function main(): Promise<void> {
   if (!config) {
-    logger.error('Invalid configuration. Exiting...');
+    logger.error("Invalid configuration. Exiting...");
     process.exit(1);
   }
 
@@ -290,11 +315,11 @@ async function main(): Promise<void> {
   await cf.initZones();
 
   // Start IP check interval
-  logger.info('Starting IP check interval');
+  logger.info("Starting IP check interval");
   await checkPublicIPChange(cf); // Initial check
   ipCheckInterval = setInterval(() => {
-    checkPublicIPChange(cf).catch(error => {
-      logger.error('Error in IP check interval:', error);
+    checkPublicIPChange(cf).catch((error) => {
+      logger.error("Error in IP check interval:", error);
     });
   }, config.checkInterval);
 
@@ -305,12 +330,12 @@ async function main(): Promise<void> {
     config.checkInterval
   );
 
-  logger.info('Starting Nginx Proxy Manager to Cloudflare DNS sync service');
+  logger.info("Starting Nginx Proxy Manager to Cloudflare DNS sync service");
 
   try {
     await monitor.startMonitoring(handleNPMChanges);
   } catch (error) {
-    logger.error('An error occurred:', error);
+    logger.error("An error occurred:", error);
     process.exit(1);
   }
 }
@@ -318,14 +343,14 @@ async function main(): Promise<void> {
 // Cleanup function to handle graceful shutdown
 function cleanup() {
   if (monitorInterval) {
-    clearInterval(monitorInterval);
+    clearInterval(monitorInterval as NodeJS.Timeout);
     monitorInterval = null;
   }
   if (ipCheckInterval) {
-    clearInterval(ipCheckInterval);
+    clearInterval(ipCheckInterval as NodeJS.Timeout);
     ipCheckInterval = null;
   }
-  logger.info('Shutting down gracefully...');
+  logger.info("Shutting down gracefully...");
   process.exit(0);
 }
 
@@ -333,21 +358,21 @@ function cleanup() {
 process.setMaxListeners(5);
 
 // Handle graceful shutdown with a single listener for each signal
-process.once('SIGTERM', cleanup);
-process.once('SIGINT', cleanup);
+process.once("SIGTERM", cleanup);
+process.once("SIGINT", cleanup);
 
 // Handle uncaught exceptions and rejections
-process.once('uncaughtException', (error) => {
-  logger.error('Uncaught exception:', error);
+process.once("uncaughtException", (error) => {
+  logger.error("Uncaught exception:", error);
   cleanup();
 });
 
-process.once('unhandledRejection', (reason) => {
-  logger.error('Unhandled rejection:', reason);
+process.once("unhandledRejection", (reason) => {
+  logger.error("Unhandled rejection:", reason);
   cleanup();
 });
 
-main().catch(error => {
-  logger.error('Fatal error:', error);
+main().catch((error) => {
+  logger.error("Fatal error:", error);
   process.exit(1);
 });
