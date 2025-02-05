@@ -8,23 +8,38 @@
   <Support>https://github.com/rvbcrs/npm-cloudflare-sync</Support>
   <Project>https://github.com/rvbcrs/npm-cloudflare-sync</Project>
   <Overview>
-    A service that automatically synchronizes Nginx Proxy Manager host configurations with Cloudflare DNS records. It supports both A records for root domains and CNAME records for subdomains.
+    A service that automatically synchronizes Nginx Proxy Manager host configurations with Cloudflare DNS records using the NPM REST API. It supports both A records for root domains and CNAME records for subdomains, with built-in DDNS functionality.
+
+    Features:
+    - Uses NPM REST API to monitor proxy host changes
+    - Automatically updates Cloudflare DNS records when changes are detected
+    - Smart handling of root domains (A records) and subdomains (CNAME records)
+    - Built-in DDNS (Dynamic DNS) functionality
+    - Configurable check intervals
+    - Token-based authentication with NPM
+    - Automatic zone detection and management
+    - Real-time synchronization
+    - Configurable logging levels
   </Overview>
   <Category>Network:DNS Network:Management Tools:</Category>
   <WebUI/>
   <TemplateURL>https://raw.githubusercontent.com/rvbcrs/npm-cloudflare-sync/main/docker-template.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/rvbcrs/npm-cloudflare-sync/main/icon.png</Icon>
+  <Icon>https://raw.githubusercontent.com/rvbcrs/npm-cloudflare-sync/37840044a9c6ce3e70fe83876818f25afb7bbe01/icon.png</Icon>
   <ExtraParams/>
   <DateInstalled>1612444800</DateInstalled>
   <Description>
-    This container synchronizes Nginx Proxy Manager host configurations with Cloudflare DNS records automatically. Features include:
+    This container synchronizes Nginx Proxy Manager host configurations with Cloudflare DNS records automatically. Key features include:
     
-    - Automatic DNS record management
-    - Support for both root domains and subdomains
-    - Real-time synchronization
-    - Smart handling of A and CNAME records
-    - Configurable check intervals
-    - Detailed logging
+    - Automatic DNS record management for both root domains and subdomains
+    - Built-in DDNS functionality to handle dynamic IP addresses
+    - Smart caching to reduce API calls
+    - Automatic failover between multiple IP detection services
+    - Exponential backoff for retries
+    - Detailed logging with configurable levels
+    - Real-time synchronization of NPM changes
+    - Token-based authentication for security
+    - Support for both A records and CNAME records
+    - Automatic zone detection and management
   </Description>
   <Config Name="Cloudflare API Token" Target="CF_API_TOKEN" Default="" Mode="" Description="Your Cloudflare API token" Type="Variable" Display="always" Required="true" Mask="true"/>
   <Config Name="Cloudflare Email" Target="CF_EMAIL" Default="" Mode="" Description="Your Cloudflare account email" Type="Variable" Display="always" Required="true" Mask="false"/>
