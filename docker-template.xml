@@ -24,7 +24,7 @@
   <Category>Network:DNS Network:Management Tools:</Category>
   <WebUI/>
   <TemplateURL>https://raw.githubusercontent.com/rvbcrs/npm-cloudflare-sync/main/docker-template.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/rvbcrs/npm-cloudflare-sync/37840044a9c6ce3e70fe83876818f25afb7bbe01/icon.png</Icon>
+  <Icon>https://github.com/rvbcrs/npm-cloudflare-sync/blob/9e11de3ca77de7532da6448792857e00c0f9cb05/icon.png</Icon>
   <ExtraParams/>
   <DateInstalled>1612444800</DateInstalled>
   <Description>
