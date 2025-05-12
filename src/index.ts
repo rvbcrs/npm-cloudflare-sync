@@ -246,6 +246,14 @@ async function handleNPMChanges(
       const existingRecords = await cf.getDNSRecords(domainName);
       const existingRecord = existingRecords.find((r) => r.name === domainName);
 
+      if (existingRecord) {
+        logger.info(
+          `DNS record for ${domainName} already exists. Skipping update.`
+        );
+        continue; // Skip to the next domain if record already exists
+      }
+
+      // If record does not exist, proceed with creation logic
       if (domainName !== rootDomain) {
         // For subdomains, create a CNAME record pointing to the root domain
         const recordData: Omit<DNSRecord, "id"> = {
@@ -255,29 +263,17 @@ async function handleNPMChanges(
           proxied: true,
         };
 
-        if (existingRecord) {
-          logger.info(
-            `Updating CNAME record for ${domainName} -> ${rootDomain}`
-          );
-          await cf.updateDNSRecord(domainName, existingRecord.id, recordData);
-        } else {
-          logger.info(
-            `Creating new CNAME record for ${domainName} -> ${rootDomain}`
-          );
-          await cf.createDNSRecord(domainName, recordData);
-        }
+        // No updateDNSRecord call here, only create
+        logger.info(
+          `Creating new CNAME record for ${domainName} -> ${rootDomain}`
+        );
+        await cf.createDNSRecord(domainName, recordData);
       } else {
         // For root domains, ensure A record points to current public IP
         const currentIP = await getPublicIP();
-        logger.debug("Updating root domain A record:", {
+        logger.debug("Creating root domain A record:", {
           domain: domainName,
           currentIP,
-          existingRecord: existingRecord
-            ? {
-                type: existingRecord.type,
-                content: existingRecord.content,
-              }
-            : "none",
         });
 
         const recordData: Omit<DNSRecord, "id"> = {
@@ -287,15 +283,14 @@ async function handleNPMChanges(
           proxied: true,
         };
 
-        if (existingRecord) {
-          logger.info(`Updating A record for ${domainName}`);
-          await cf.updateDNSRecord(domainName, existingRecord.id, recordData);
-        } else if (config?.autoCreateRootRecords) {
+        // No updateDNSRecord call here, only create if autoCreateRootRecords is enabled
+        if (config?.autoCreateRootRecords) {
           logger.info(`Creating new A record for ${domainName}`);
           await cf.createDNSRecord(domainName, recordData);
         } else {
-          logger.error(
-            `Cannot create A record for ${domainName} - auto-creation is disabled`
+          logger.warn(
+            // Changed from error to warn as we are skipping, not failing
+            `Skipping A record creation for ${domainName} - auto-creation is disabled and record does not exist`
           );
         }
       }
