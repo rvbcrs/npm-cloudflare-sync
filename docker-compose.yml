@@ -2,7 +2,7 @@ version: "3"
 
 services:
   npm-cloudflare-sync:
-    build: .
+    build: ./npm-cloudflare-sync
     image: rvbcrs/npm-cloudflare-sync:latest
     container_name: npm-cloudflare-sync
     environment:
