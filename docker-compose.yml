@@ -2,15 +2,16 @@ version: "3"
 
 services:
   npm-cloudflare-sync:
+    build: .
     image: rvbcrs/npm-cloudflare-sync:latest
     container_name: npm-cloudflare-sync
     environment:
-      - CF_API_TOKEN=your_token
-      - CF_EMAIL=your_email
-      - NPM_API_URL=http://npm:81
-      - NPM_EMAIL=your_npm_email
-      - NPM_PASSWORD=your_npm_password
-      - CHECK_INTERVAL=10000
-      - LOG_LEVEL=info
-      - AUTO_CREATE_ROOT_RECORDS=false
+      - CF_API_TOKEN=${CF_API_TOKEN}
+      - CF_EMAIL=${CF_EMAIL}
+      - NPM_API_URL=${NPM_API_URL}
+      - NPM_EMAIL=${NPM_EMAIL}
+      - NPM_PASSWORD=${NPM_PASSWORD}
+      - CHECK_INTERVAL=${CHECK_INTERVAL}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - AUTO_CREATE_ROOT_RECORDS=${AUTO_CREATE_ROOT_RECORDS}
     restart: unless-stopped
