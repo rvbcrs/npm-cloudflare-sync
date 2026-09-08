@@ -20,6 +20,9 @@ export class NPMMonitor {
   private consecutiveFailures = 0;
   private readonly maxConsecutiveFailures = 5;
   private isInitialized: boolean = false;
+  // A host must be absent in this many consecutive *successful* checks before we report it deleted
+  private readonly deleteConfirmations = 3;
+  private missingCounts = new Map<number, number>();
 
   constructor(
     apiUrl: string,
@@ -141,14 +144,18 @@ export class NPMMonitor {
           clearTimeout(timeout);
 
           if (!response.ok) {
-            if (response.status === 401) {
-              this.token = null;
-              logger.info("Token expired, retrying with new token");
-              return this.getProxyHosts();
-            }
             const text = await response.text();
+            // NPM answers "Token has expired" with 400, not 401. Any auth-ish
+            // status drops the token so the next attempt logs in again.
+            if ([400, 401, 403].includes(response.status)) {
+              this.token = null;
+              logger.warn(
+                `NPM rejected token (HTTP ${response.status}), will re-login`,
+                { body: text }
+              );
+            }
             throw new Error(
-              `Failed to fetch proxy hosts: ${response.statusText} - ${text}`
+              `Failed to fetch proxy hosts: ${response.status} ${response.statusText} - ${text}`
             );
           }
 
@@ -203,7 +210,8 @@ export class NPMMonitor {
       );
     }
 
-    return [];
+    // Fail closed: a failed fetch must never look like "NPM has zero hosts".
+    throw new Error("All attempts to fetch proxy hosts failed");
   }
 
   private async getChangesSinceLastCheck(): Promise<{
@@ -218,6 +226,7 @@ export class NPMMonitor {
     if (!this.isInitialized) {
       this.lastKnownHosts = currentHosts;
       this.isInitialized = true;
+      this.missingCounts.clear();
       logger.info("Initial hosts loaded, processing all hosts as new", {
         hostCount: currentHosts.length,
         hosts: currentHosts.map((h) => ({
@@ -230,6 +239,14 @@ export class NPMMonitor {
         changedHosts: currentHosts, // Treat all hosts as changed on first run
         deletedHosts: [],
       };
+    }
+
+    // Fail closed: going from N hosts to zero is almost always an API problem,
+    // not someone deleting every proxy host at once.
+    if (currentHosts.length === 0 && this.lastKnownHosts.length > 0) {
+      throw new Error(
+        `NPM returned 0 hosts while ${this.lastKnownHosts.length} were known; refusing to sync`
+      );
     }
 
     // Check for modified and new hosts
@@ -267,14 +284,34 @@ export class NPMMonitor {
       return hasChanged;
     });
 
-    // Check for deleted hosts
-    const deletedHosts = this.lastKnownHosts.filter(
+    // Check for deleted hosts: only confirmed after deleteConfirmations
+    // consecutive successful checks in which the host was absent.
+    const missingHosts = this.lastKnownHosts.filter(
       (previousHost) => !currentHosts.some((h) => h.id === previousHost.id)
     );
+    const deletedHosts: NPMHost[] = [];
+    const stillPending: NPMHost[] = [];
+    for (const host of missingHosts) {
+      const misses = (this.missingCounts.get(host.id) ?? 0) + 1;
+      if (misses >= this.deleteConfirmations) {
+        this.missingCounts.delete(host.id);
+        deletedHosts.push(host);
+      } else {
+        this.missingCounts.set(host.id, misses);
+        stillPending.push(host);
+        logger.warn(
+          `Host ${host.domain_names} missing from NPM (${misses}/${this.deleteConfirmations}), not deleting yet`
+        );
+      }
+    }
+    // A host that reappeared is no longer pending deletion
+    for (const id of this.missingCounts.keys()) {
+      if (currentHosts.some((h) => h.id === id)) this.missingCounts.delete(id);
+    }
 
     if (deletedHosts.length > 0) {
-      logger.debug(
-        `Deleted hosts detected: ${deletedHosts
+      logger.info(
+        `Deleted hosts confirmed: ${deletedHosts
           .map((h) => h.domain_names)
           .join(", ")}`
       );
@@ -290,8 +327,8 @@ export class NPMMonitor {
       });
     }
 
-    // Update last known hosts
-    this.lastKnownHosts = currentHosts;
+    // Update last known hosts; keep pending ones so they stay tracked
+    this.lastKnownHosts = [...currentHosts, ...stillPending];
     return { currentHosts, changedHosts, deletedHosts };
   }
 
@@ -302,6 +339,7 @@ export class NPMMonitor {
     }
     this.isMonitoring = false;
     this.isInitialized = false;
+    this.missingCounts.clear();
     logger.info("Monitoring stopped");
   }
 
@@ -350,7 +388,8 @@ export class NPMMonitor {
             "Maximum consecutive failures reached. Stopping monitoring..."
           );
           this.stopMonitoring();
-          return;
+          // Exit so the container restart policy brings us back with a fresh login
+          process.exit(1);
         }
       }
     };
