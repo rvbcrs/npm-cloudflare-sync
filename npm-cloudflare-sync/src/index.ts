@@ -4,6 +4,7 @@ import { CloudflareAPI } from "./cloudflare.js";
 import { logger } from "./logger.js";
 import { NPMHost, DNSRecord } from "./types.js";
 import { getPublicIP } from "./public-ip.js";
+import { pathToFileURL } from "node:url";
 
 let currentPublicIP: string | null = null;
 let ipCheckInterval: NodeJS.Timer | null = null;
@@ -194,11 +195,19 @@ async function checkPublicIPChange(cf: CloudflareAPI): Promise<void> {
   }
 }
 
-async function handleNPMChanges(
+export async function handleNPMChanges(
   currentHosts: NPMHost[],
   changedHosts: NPMHost[],
   deletedHosts: NPMHost[]
 ): Promise<void> {
+  if (deletedHosts.length > 0 && currentHosts.length === 0) {
+    throw new Error("Refusing DNS deletions with an empty NPM host list");
+  }
+  const normalizeDomain = (domain: string) => domain.trim().toLowerCase().replace(/\.$/, "");
+  const currentDomains = new Set(currentHosts.flatMap((host) =>
+    (Array.isArray(host.domain_names) ? host.domain_names : host.domain_names.split(","))
+      .map(normalizeDomain)
+  ));
   const cf = new CloudflareAPI(config!.cloudflare.apiToken);
 
   // Initialize zones first
@@ -211,9 +220,13 @@ async function handleNPMChanges(
       : host.domain_names.split(",");
 
     for (const domain of domains) {
-      const domainName = domain.trim();
+      const domainName = normalizeDomain(domain);
+      if (currentDomains.has(domainName)) {
+        logger.info(`Keeping DNS record for ${domainName}; still used by an NPM host`);
+        continue;
+      }
       const existingRecords = await cf.getDNSRecords(domainName);
-      const existingRecord = existingRecords.find((r) => r.name === domainName);
+      const existingRecord = existingRecords.find((r) => normalizeDomain(r.name) === domainName);
 
       if (existingRecord) {
         logger.info(`Deleting DNS record for ${domainName}`);
@@ -349,25 +362,27 @@ function cleanup() {
   process.exit(0);
 }
 
-// Set maximum listeners to prevent warning
-process.setMaxListeners(5);
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  // Set maximum listeners to prevent warning
+  process.setMaxListeners(5);
 
-// Handle graceful shutdown with a single listener for each signal
-process.once("SIGTERM", cleanup);
-process.once("SIGINT", cleanup);
+  // Handle graceful shutdown with a single listener for each signal
+  process.once("SIGTERM", cleanup);
+  process.once("SIGINT", cleanup);
 
-// Handle uncaught exceptions and rejections
-process.once("uncaughtException", (error) => {
-  logger.error("Uncaught exception:", error);
-  cleanup();
-});
+  // Handle uncaught exceptions and rejections
+  process.once("uncaughtException", (error) => {
+    logger.error("Uncaught exception:", error);
+    cleanup();
+  });
 
-process.once("unhandledRejection", (reason) => {
-  logger.error("Unhandled rejection:", reason);
-  cleanup();
-});
+  process.once("unhandledRejection", (reason) => {
+    logger.error("Unhandled rejection:", reason);
+    cleanup();
+  });
 
-main().catch((error) => {
-  logger.error("Fatal error:", error);
-  process.exit(1);
-});
+  main().catch((error) => {
+    logger.error("Fatal error:", error);
+    process.exit(1);
+  });
+}

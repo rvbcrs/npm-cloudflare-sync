@@ -1,15 +1,13 @@
 #!/bin/bash
 set -e
 
-# Read from the options.json file and export as environment variables
-export CF_API_TOKEN=$(jq --raw-output '.CF_API_TOKEN' /data/options.json)
-export CF_EMAIL=$(jq --raw-output '.CF_EMAIL' /data/options.json)
-export NPM_API_URL=$(jq --raw-output '.NPM_API_URL' /data/options.json)
-export NPM_EMAIL=$(jq --raw-output '.NPM_EMAIL' /data/options.json)
-export NPM_PASSWORD=$(jq --raw-output '.NPM_PASSWORD' /data/options.json)
-export CHECK_INTERVAL=$(jq --raw-output '.CHECK_INTERVAL' /data/options.json)
-export LOG_LEVEL=$(jq --raw-output '.LOG_LEVEL' /data/options.json)
-export AUTO_CREATE_ROOT_RECORDS=$(jq --raw-output '.AUTO_CREATE_ROOT_RECORDS' /data/options.json)
+# Home Assistant supplies options.json; standalone Docker uses its environment.
+if [ -f /data/options.json ]; then
+  for name in CF_API_TOKEN CF_EMAIL NPM_API_URL NPM_EMAIL NPM_PASSWORD CHECK_INTERVAL LOG_LEVEL AUTO_CREATE_ROOT_RECORDS; do
+    value=$(jq --raw-output --arg name "$name" '.[$name]' /data/options.json)
+    export "$name=$value"
+  done
+fi
 
 # Start the application
-node dist/index.js
+exec node dist/index.js

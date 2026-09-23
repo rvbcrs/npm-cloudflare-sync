@@ -58,6 +58,20 @@ All options found in the `.env` file are available in the **Configuration** tab 
 ---
 
 ## Development
+Run Node commands from the `npm-cloudflare-sync` subdirectory:
+- **Test**: `npm test`
 - **Build**: `npm run build`
 - **Run**: `npm start`
-- **Docker Build**: `docker build -t npm-cloudflare-sync .`
+
+## DNS safety and updates
+
+Expired/rejected NPM tokens trigger a new login. Failed requests, timeouts and invalid host lists never authorize DNS changes. Unexpected empty host lists are blocked while hosts are known; removing the final host requires manual DNS cleanup.
+
+A removed host must be absent from three consecutive successful checks before its DNS records can be deleted. Any failed request resets those confirmations. Checks and DNS updates run one at a time, and domains still used by another NPM host are preserved.
+
+Restarting a container does not install a new image. To install a published update with the repository's Compose file:
+
+```bash
+docker compose pull npm-cloudflare-sync
+docker compose up -d --no-build --force-recreate npm-cloudflare-sync
+```

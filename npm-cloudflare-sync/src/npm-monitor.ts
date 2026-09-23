@@ -13,6 +13,7 @@ export class NPMMonitor {
   private readonly checkInterval: number;
   private monitorInterval: NodeJS.Timeout | null = null;
   private isMonitoring: boolean = false;
+  private isChecking = false;
   private lastKnownHosts: NPMHost[] = [];
   private readonly maxRetries = 3;
   private readonly retryDelay = 5000; // 5 seconds between retries
@@ -62,16 +63,16 @@ export class NPMMonitor {
             signal: controller.signal,
           });
 
-          clearTimeout(timeout);
-
           if (!response.ok) {
             const text = await response.text();
             throw new Error(`Login failed: ${response.statusText} - ${text}`);
           }
 
           const data = (await response.json()) as NPMTokenResponse;
+          if (!data || typeof data.token !== "string" || !data.token.trim()) {
+            throw new Error("NPM returned an invalid login response");
+          }
           this.token = data.token;
-          this.consecutiveFailures = 0; // Reset failure counter on successful login
           logger.info("Successfully logged in to NPM");
           return true;
         } finally {
@@ -141,8 +142,6 @@ export class NPMMonitor {
             signal: controller.signal,
           });
 
-          clearTimeout(timeout);
-
           if (!response.ok) {
             const text = await response.text();
             // NPM answers "Token has expired" with 400, not 401. Any auth-ish
@@ -160,6 +159,21 @@ export class NPMMonitor {
           }
 
           const hosts = (await response.json()) as NPMHost[];
+          // Reject the whole snapshot: filtering invalid rows would look like deletions.
+          if (
+            !Array.isArray(hosts) ||
+            hosts.some((host) => {
+              if (!host || !Number.isSafeInteger(host.id) || host.id <= 0) return true;
+              const domains = typeof host.domain_names === "string"
+                ? host.domain_names.split(",")
+                : host.domain_names;
+              return !Array.isArray(domains) || domains.length === 0 ||
+                domains.some((domain) => typeof domain !== "string" || !domain.trim());
+            }) ||
+            new Set(hosts.map((host) => host.id)).size !== hosts.length
+          ) {
+            throw new Error("NPM returned an invalid proxy host list");
+          }
           this.consecutiveFailures = 0; // Reset failure counter on success
           logger.debug(`Retrieved ${hosts.length} proxy hosts from NPM`);
           return hosts;
@@ -167,6 +181,7 @@ export class NPMMonitor {
           clearTimeout(timeout);
         }
       } catch (error) {
+        this.missingCounts.clear();
         const isNetworkError =
           error instanceof Error &&
           (error.message.includes("ECONNREFUSED") ||
@@ -219,7 +234,19 @@ export class NPMMonitor {
     changedHosts: NPMHost[];
     deletedHosts: NPMHost[];
   }> {
-    const currentHosts = await this.getProxyHosts();
+    let currentHosts: NPMHost[];
+    try {
+      currentHosts = await this.getProxyHosts();
+      // A sudden empty snapshot must never authorize deleting all DNS records.
+      if (currentHosts.length === 0 && this.lastKnownHosts.length > 0) {
+        throw new Error(
+          `NPM returned 0 hosts while ${this.lastKnownHosts.length} were known; refusing to sync`
+        );
+      }
+    } catch (error) {
+      this.missingCounts.clear();
+      throw error;
+    }
     logger.debug(`Current check: Found ${currentHosts.length} hosts`);
 
     // If this is the first check after startup, treat all hosts as changed
@@ -239,14 +266,6 @@ export class NPMMonitor {
         changedHosts: currentHosts, // Treat all hosts as changed on first run
         deletedHosts: [],
       };
-    }
-
-    // Fail closed: going from N hosts to zero is almost always an API problem,
-    // not someone deleting every proxy host at once.
-    if (currentHosts.length === 0 && this.lastKnownHosts.length > 0) {
-      throw new Error(
-        `NPM returned 0 hosts while ${this.lastKnownHosts.length} were known; refusing to sync`
-      );
     }
 
     // Check for modified and new hosts
@@ -362,6 +381,9 @@ export class NPMMonitor {
     );
 
     const monitor = async () => {
+      // Keep fetches and DNS callbacks in order, including while retrying NPM.
+      if (this.isChecking || !this.isMonitoring) return;
+      this.isChecking = true;
       try {
         const timestamp = new Date().toISOString();
         logger.debug(`[${timestamp}] Running monitoring check`);
@@ -391,6 +413,8 @@ export class NPMMonitor {
           // Exit so the container restart policy brings us back with a fresh login
           process.exit(1);
         }
+      } finally {
+        this.isChecking = false;
       }
     };
 

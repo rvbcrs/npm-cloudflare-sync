@@ -1,5 +1,5 @@
 name: "NPM Cloudflare Sync"
-version: "1.0.1"
+version: "1.0.2"
 slug: "npm_cloudflare_sync"
 description: "Sync Nginx Proxy Manager hosts with Cloudflare DNS"
 url: "https://github.com/rvbcrs/npm-cloudflare-sync"
